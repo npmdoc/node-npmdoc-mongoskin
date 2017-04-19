@@ -13276,7 +13276,9 @@ origin:
   // Set the connections
   if(connectionAccounting) deleteConnection(this.id);
   if(this.connection) {
-    this.connection.end();
+    // Catch posssible exception thrown by node 0.10.x
+    try { this.connection.end(); } catch (err) {}
+    // Destroy connection
     this.connection.destroy();
   }
 
@@ -13616,6 +13618,9 @@ origin:
   if(typeof options == 'function') callback = options, options = {}, options = options || {};
   var result = basicReadValidations(self, options);
   if(result) return callback(result);
+
+  // Clone the options
+  options = assign({}, options, { wireProtocolCommand: false });
 
   // Debug log
   if(self.s.logger.isDebug()) self.s.logger.debug(f('executing command [%s] against %s', JSON.stringify({
@@ -27469,6 +27474,14 @@ object_size + "]");
   if (!options) options = {};
 
   var newOptions = {};
+
+  // Make a shallow copy of the collection options
+  for(var key in this.s.options) {
+    if(mergeKeys.indexOf(key) != -1) {
+      newOptions[key] = this.s.options[key];
+    }
+  }
+
   // Make a shallow copy of options
   for (var key in options) {
     newOptions[key] = options[key];
@@ -27488,12 +27501,7 @@ object_size + "]");
 
   // Set slave ok to true if read preference different from primary
   if(newOptions.readPreference != null
-    &amp;&amp; (newOptions.readPreference != 'primary' || newOptions.readPreference.mode != 'primary')) {
-    newOptions.slaveOk = true;
-  }
-
-  // Ensure the query is an object
-  if(selector != null &amp;&amp; typeof selector != 'object') { ...</pre></li>
+    &amp;&amp; (newOptions.readPreference != 'primary' ...</pre></li>
     <li>example usage<pre class="apidocCodePre">...
 
 Use dburl
@@ -30491,6 +30499,9 @@ var mongo = require('mongoskin');
     options.ignoreUndefined = this.s.options.ignoreUndefined;
   }
 
+  // Merge in all needed options and ensure correct writeConcern merging from db level
+  options = mergeOptionsAndWriteConcern(options, this.s.options, collectionKeys, true);
+
   // Execute
   if(options == null || !options.strict) {
     try {
@@ -30514,7 +30525,7 @@ var mongo = require('mongoskin');
   }
 
   // Strict mode
-  this.listCollections({name:name}).toArray(function(err, collections) {
+  this.listCollections({name:name}, options).toArray(function(err, collections) {
     if(err != null) return handleCallback(callback, err, null);
     if(collections.length == 0) return handleCallback(callback, toError(f("Collection %s does not exist. Currently in strict mode
 .", name)), null);
